@@ -73,6 +73,31 @@ export interface ZoomMeetingSummary {
   }>;
 }
 
+export interface ZoomMeeting {
+  uuid: string;
+  id: number;
+  host_id: string;
+  topic: string;
+  type: number;
+  start_time: string;
+  duration: number;
+  timezone: string;
+  user_name: string;
+  user_email: string;
+  dept?: string;
+  participants_count?: number;
+}
+
+export interface ZoomMeetingsReportResponse {
+  from: string;
+  to: string;
+  page_count: number;
+  page_size: number;
+  total_records: number;
+  next_page_token?: string;
+  meetings: ZoomMeeting[];
+}
+
 export interface TranscriptSegment {
   speaker: string;
   timestamp: string;

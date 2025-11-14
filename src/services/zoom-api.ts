@@ -5,7 +5,14 @@
 import axios, { AxiosInstance } from 'axios';
 import { logger } from '../utils/logger.js';
 import { ZoomAuthClient } from './zoom-auth.js';
-import type { ZoomConfig, ZoomRecordingsResponse, ZoomRecording, ZoomMeetingSummary } from '../types/index.js';
+import type {
+  ZoomConfig,
+  ZoomRecordingsResponse,
+  ZoomRecording,
+  ZoomMeetingSummary,
+  ZoomMeeting,
+  ZoomMeetingsReportResponse
+} from '../types/index.js';
 
 export class ZoomApiClient {
   private authClient: ZoomAuthClient;
@@ -116,6 +123,127 @@ export class ZoomApiClient {
     } finally {
       logger.endGroup();
     }
+  }
+
+  /**
+   * List all meetings for a user within a date range using the Reports API
+   * This endpoint can fetch ALL meetings, not just cloud recordings
+   * Note: Zoom limits queries to 30 days per request, so we'll chunk large ranges
+   */
+  async listMeetings(from: Date, to: Date): Promise<ZoomMeeting[]> {
+    const allMeetings: ZoomMeeting[] = [];
+
+    // Split date range into 30-day chunks
+    const dateChunks = this.splitDateRange(from, to, 30);
+
+    logger.group(`Fetching meetings from ${from.toISOString().split('T')[0]} to ${to.toISOString().split('T')[0]}`);
+    logger.info(`Split into ${dateChunks.length} date chunks (max 30 days each)`);
+
+    try {
+      for (const chunk of dateChunks) {
+        const fromStr = chunk.from.toISOString().split('T')[0];
+        const toStr = chunk.to.toISOString().split('T')[0];
+
+        logger.debug(`Fetching chunk: ${fromStr} to ${toStr}`);
+
+        let nextPageToken: string | undefined;
+
+        do {
+          const params: Record<string, string | number> = {
+            from: fromStr,
+            to: toStr,
+            type: 'past', // Get all past meetings
+            page_size: 300,
+          };
+
+          if (nextPageToken) {
+            params.next_page_token = nextPageToken;
+          }
+
+          logger.debug('API Request', {
+            endpoint: `/report/users/${this.userId}/meetings`,
+            params
+          });
+
+          const response = await this.axiosInstance.get<ZoomMeetingsReportResponse>(
+            `/report/users/${this.userId}/meetings`,
+            { params }
+          );
+
+          const { meetings, next_page_token } = response.data;
+
+          allMeetings.push(...meetings);
+          nextPageToken = next_page_token;
+
+          logger.info(`Fetched ${meetings.length} meetings from chunk (total so far: ${allMeetings.length})`);
+
+          // Rate limiting: wait 100ms between requests
+          if (nextPageToken) {
+            await new Promise((resolve) => setTimeout(resolve, 100));
+          }
+        } while (nextPageToken);
+
+        // Rate limiting between chunks
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+
+      logger.info(`Successfully fetched ${allMeetings.length} total meetings`);
+      return allMeetings;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const errorDetails = {
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          message: error.response?.data?.message || error.message,
+          code: error.response?.data?.code,
+          data: error.response?.data,
+        };
+        logger.error('Failed to fetch meetings', errorDetails);
+
+        // More specific error messages
+        if (error.response?.status === 404) {
+          logger.error('User not found. Check ZOOM_USER_ID setting.');
+        } else if (error.response?.status === 401) {
+          logger.error('Authentication failed. Check Zoom OAuth credentials.');
+        } else if (error.response?.status === 403) {
+          logger.error('Permission denied. Check Zoom app scopes include: report:read:meeting');
+        }
+      } else {
+        logger.error('Unknown error fetching meetings', error as Error);
+      }
+      throw error;
+    } finally {
+      logger.endGroup();
+    }
+  }
+
+  /**
+   * Split a date range into chunks of specified days (Zoom API limitation)
+   */
+  private splitDateRange(from: Date, to: Date, maxDays: number): Array<{ from: Date; to: Date }> {
+    const chunks: Array<{ from: Date; to: Date }> = [];
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const maxMs = maxDays * msPerDay;
+
+    let currentFrom = new Date(from);
+    const endDate = new Date(to);
+
+    while (currentFrom < endDate) {
+      const currentTo = new Date(Math.min(
+        currentFrom.getTime() + maxMs,
+        endDate.getTime()
+      ));
+
+      chunks.push({
+        from: new Date(currentFrom),
+        to: new Date(currentTo)
+      });
+
+      // Move to next chunk (add 1ms to avoid overlap)
+      currentFrom = new Date(currentTo.getTime() + 1);
+    }
+
+    return chunks;
   }
 
   /**

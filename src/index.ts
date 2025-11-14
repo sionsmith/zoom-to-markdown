@@ -8,15 +8,13 @@ import path from 'path';
 import crypto from 'crypto';
 import { ZoomApiClient } from './services/zoom-api.js';
 import { StateManager } from './services/state-manager.js';
-import { parseTranscript } from './parsers/transcript-parser.js';
-import { extractActionItems } from './parsers/action-items.js';
 import { convertZoomSummaryToMeetingNote } from './parsers/summary-converter.js';
 import { generateMarkdown } from './generators/markdown.js';
 import { createDatePath, writeFile, fileExists } from './utils/filesystem.js';
 import { createFilename } from './utils/sanitize.js';
 import { loadConfig } from './utils/config.js';
 import { logger } from './utils/logger.js';
-import type { ZoomRecording, MeetingNote, ProcessedRecording } from './types/index.js';
+import type { ZoomMeeting, ProcessedRecording } from './types/index.js';
 
 async function main() {
   logger.info('🚀 Zoom Meeting Notes Archiver started');
@@ -40,51 +38,48 @@ async function main() {
     const lastFetch = new Date(stateManager.getLastFetchTimestamp());
     const now = new Date();
 
-    logger.info('Fetching recordings', {
+    logger.info('Fetching meetings', {
       from: lastFetch.toISOString(),
       to: now.toISOString(),
     });
 
-    // Fetch recordings from Zoom
-    const allRecordings = await zoomClient.listRecordings(lastFetch, now);
+    // Fetch all meetings from Zoom using Reports API
+    const allMeetings = await zoomClient.listMeetings(lastFetch, now);
 
-    // Filter for recordings with transcripts
-    const recordingsWithTranscripts = zoomClient.filterRecordingsWithTranscripts(allRecordings);
+    logger.info(`Found ${allMeetings.length} meetings`);
 
-    logger.info(`Found ${recordingsWithTranscripts.length} recordings with transcripts`);
-
-    if (recordingsWithTranscripts.length === 0) {
-      logger.info('No new recordings to process');
+    if (allMeetings.length === 0) {
+      logger.info('No meetings found in this date range');
       stateManager.updateLastFetchTimestamp(now.toISOString());
       stateManager.updateStatistics('success');
       await stateManager.save();
       return;
     }
 
-    // Process each recording
+    // Process each meeting
     let successCount = 0;
     let skipCount = 0;
     let errorCount = 0;
 
-    for (const recording of recordingsWithTranscripts) {
+    for (const meeting of allMeetings) {
       try {
         // Check if already processed
-        if (stateManager.isProcessed(recording.uuid)) {
-          logger.debug(`Skipping already processed recording: ${recording.uuid}`);
+        if (stateManager.isProcessed(meeting.uuid)) {
+          logger.debug(`Skipping already processed meeting: ${meeting.uuid}`);
           skipCount++;
           continue;
         }
 
-        logger.group(`Processing: ${recording.topic}`);
+        logger.group(`Processing: ${meeting.topic}`);
 
-        // Process the recording
-        const result = await processRecording(recording, zoomClient, config);
+        // Process the meeting
+        const result = await processMeeting(meeting, zoomClient, config);
 
         if (result) {
           // Save to state
           stateManager.addProcessedRecording(result);
           successCount++;
-          logger.info(`✅ Successfully processed: ${recording.topic}`);
+          logger.info(`✅ Successfully processed: ${meeting.topic}`);
         } else {
           skipCount++;
         }
@@ -92,7 +87,7 @@ async function main() {
         logger.endGroup();
       } catch (error) {
         errorCount++;
-        logger.error(`Failed to process recording: ${recording.topic}`, error as Error);
+        logger.error(`Failed to process meeting: ${meeting.topic}`, error as Error);
         logger.endGroup();
       }
     }
@@ -107,7 +102,7 @@ async function main() {
 
     // Final summary
     logger.info('📊 Processing Summary', {
-      total: recordingsWithTranscripts.length,
+      total: allMeetings.length,
       success: successCount,
       skipped: skipCount,
       errors: errorCount,
@@ -124,71 +119,26 @@ async function main() {
 }
 
 /**
- * Process a single recording
+ * Process a single meeting
  */
-async function processRecording(
-  recording: ZoomRecording,
+async function processMeeting(
+  meeting: ZoomMeeting,
   zoomClient: ZoomApiClient,
   config: ReturnType<typeof loadConfig>
 ): Promise<ProcessedRecording | null> {
-  let meetingNote: MeetingNote;
-
-  // Try to fetch AI-generated summary first
+  // Try to fetch AI-generated summary
   logger.info('Checking for AI-generated meeting summary...');
-  const aiSummary = await zoomClient.getMeetingSummary(recording.uuid);
+  const aiSummary = await zoomClient.getMeetingSummary(meeting.uuid);
 
-  if (aiSummary) {
-    logger.info('✅ AI summary found! Using Zoom AI Companion summary');
-    meetingNote = convertZoomSummaryToMeetingNote(aiSummary);
-  } else {
-    // Fallback to transcript parsing
-    logger.info('No AI summary available, falling back to transcript parsing');
-
-    // Find transcript file
-    const transcriptFile = recording.recording_files.find(
-      (file) => file.file_type === 'TRANSCRIPT' && file.status === 'completed'
-    );
-
-    if (!transcriptFile) {
-      logger.warning('No completed transcript file found');
-      return null;
-    }
-
-    logger.info('Downloading transcript', {
-      fileType: transcriptFile.file_extension,
-      size: transcriptFile.file_size,
-    });
-
-    // Download transcript
-    const transcriptContent = await zoomClient.downloadFile(transcriptFile.download_url);
-
-    // Parse transcript
-    const parsedTranscript = parseTranscript(transcriptContent, transcriptFile.file_extension);
-
-    logger.info(`Parsed transcript: ${parsedTranscript.segments.length} segments`);
-
-    // Extract action items (if enabled)
-    const actionItems = config.enableActionItemExtraction
-      ? extractActionItems(parsedTranscript)
-      : [];
-
-    // Build meeting note from transcript
-    meetingNote = {
-      metadata: {
-        title: recording.topic,
-        meetingId: recording.id.toString(),
-        uuid: recording.uuid,
-        startTime: recording.start_time,
-        duration: recording.duration,
-        host: recording.host_email,
-        participants: extractParticipants(recording),
-        recordingCount: recording.recording_count,
-        transcriptAvailable: true,
-      },
-      transcript: parsedTranscript,
-      actionItems,
-    };
+  if (!aiSummary) {
+    logger.info('No AI summary available for this meeting, skipping');
+    return null;
   }
+
+  logger.info('✅ AI summary found! Using Zoom AI Companion summary');
+
+  // Convert AI summary to meeting note
+  const meetingNote = convertZoomSummaryToMeetingNote(aiSummary);
 
   // Generate Markdown
   const markdown = generateMarkdown(meetingNote);
@@ -210,7 +160,7 @@ async function processRecording(
 
   logger.info(`📝 Saved markdown file: ${filePath}`);
 
-  // Return processed recording info
+  // Return processed meeting info
   return {
     uuid: meetingNote.metadata.uuid,
     meetingId: meetingNote.metadata.meetingId,
@@ -218,22 +168,6 @@ async function processRecording(
     filePath,
     hash: createContentHash(markdown),
   };
-}
-
-/**
- * Extract participants from recording
- */
-function extractParticipants(recording: ZoomRecording): string[] {
-  const participants = new Set<string>();
-
-  // Add host
-  participants.add(recording.host_email);
-
-  // Try to extract from participant audio files (if available)
-  // Note: Zoom API doesn't always provide participant list in recordings
-  // This is a limitation of the API
-
-  return Array.from(participants);
 }
 
 /**

@@ -92,10 +92,25 @@ export class ZoomApiClient {
       return recordings;
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        logger.error('Failed to fetch recordings', {
+        const errorDetails = {
           status: error.response?.status,
+          statusText: error.response?.statusText,
           message: error.response?.data?.message || error.message,
-        });
+          code: error.response?.data?.code,
+          data: error.response?.data,
+        };
+        logger.error('Failed to fetch recordings', errorDetails);
+
+        // More specific error messages
+        if (error.response?.status === 404) {
+          logger.error('User not found or no recordings available. Check ZOOM_USER_ID setting.');
+        } else if (error.response?.status === 401) {
+          logger.error('Authentication failed. Check Zoom OAuth credentials.');
+        } else if (error.response?.status === 403) {
+          logger.error('Permission denied. Check Zoom app scopes include: recording:read:admin');
+        }
+      } else {
+        logger.error('Unknown error fetching recordings', error as Error);
       }
       throw error;
     } finally {

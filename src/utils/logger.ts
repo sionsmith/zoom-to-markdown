@@ -40,6 +40,10 @@ class Logger {
 
     if (this.isGitHubActions) {
       console.log(`::error::${message}`);
+      // Also log the error data as a regular log so we can see details
+      if (errorData) {
+        console.log(this.formatMessage('error', 'Error details', errorData));
+      }
     } else {
       console.error(this.formatMessage('error', message, errorData));
     }

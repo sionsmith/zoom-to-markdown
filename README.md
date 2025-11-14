@@ -1,16 +1,18 @@
 # Zoom Meeting Notes Archiver
 
-Automated tool to archive Zoom cloud recordings and transcripts as Markdown files in GitHub. Runs on GitHub Actions to poll Zoom API, download transcripts, extract action items, and commit meeting notes to your repository.
+Automated tool to archive Zoom AI Companion meeting summaries as Markdown files in GitHub. Runs on GitHub Actions to fetch all your meetings, sync AI-generated summaries with action items, and commit meeting notes to your repository.
 
 ## Features
 
-- 🔄 **Automated Polling**: GitHub Actions runs every 15 minutes to fetch new recordings
-- 📝 **Markdown Generation**: Converts Zoom transcripts to beautifully formatted Markdown
-- ✅ **Action Item Extraction**: Automatically identifies and extracts action items from transcripts
+- 🤖 **AI Companion Summaries**: Uses Zoom AI Companion meeting summaries (not just transcripts!)
+- 🔄 **Automated Polling**: GitHub Actions runs every 15 minutes to fetch new meetings
+- 📝 **Markdown Generation**: Converts AI summaries to beautifully formatted Markdown
+- ✅ **Action Item Extraction**: Automatically extracts next steps from AI summaries
 - 📁 **Date-Based Organization**: Files organized in `YYYY/MM/DD/` folder structure
 - 🔒 **Secure**: Uses OAuth 2.0 Server-to-Server authentication
 - 🚀 **Idempotent**: Safe to re-run, prevents duplicates
-- 📊 **State Management**: Tracks processed recordings to avoid re-processing
+- 📊 **State Management**: Tracks processed meetings to avoid re-processing
+- 📅 **Historical Sync**: Fetches all meetings from beginning of 2025 onwards
 
 ## Output Example
 

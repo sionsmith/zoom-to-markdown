@@ -4,6 +4,12 @@
  * Main orchestrator script
  */
 
+// Load .env file if running locally (not in GitHub Actions)
+if (!process.env.GITHUB_ACTIONS) {
+  const dotenv = await import('dotenv');
+  dotenv.config();
+}
+
 import path from 'path';
 import crypto from 'crypto';
 import { ZoomApiClient } from './services/zoom-api.js';

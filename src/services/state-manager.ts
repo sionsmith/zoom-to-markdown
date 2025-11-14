@@ -114,8 +114,14 @@ export class StateManager {
    * Get default/initial state
    */
   private getDefaultState(): State {
+    // Zoom Reports API only allows queries for the last 6 months
+    // Start from 5 months ago to be safe
+    const fiveMonthsAgo = new Date();
+    fiveMonthsAgo.setMonth(fiveMonthsAgo.getMonth() - 5);
+    fiveMonthsAgo.setHours(0, 0, 0, 0);
+
     return {
-      lastFetchTimestamp: '2025-01-01T00:00:00.000Z', // Start of 2025
+      lastFetchTimestamp: fiveMonthsAgo.toISOString(), // Last 5 months to stay within Zoom's 6-month limit
       processedRecordings: {},
       statistics: {
         totalMeetings: 0,

@@ -115,7 +115,7 @@ export class StateManager {
    */
   private getDefaultState(): State {
     return {
-      lastFetchTimestamp: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days ago
+      lastFetchTimestamp: '2025-01-01T00:00:00.000Z', // Start of 2025
       processedRecordings: {},
       statistics: {
         totalMeetings: 0,

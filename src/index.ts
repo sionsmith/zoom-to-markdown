@@ -10,6 +10,7 @@ import { ZoomApiClient } from './services/zoom-api.js';
 import { StateManager } from './services/state-manager.js';
 import { parseTranscript } from './parsers/transcript-parser.js';
 import { extractActionItems } from './parsers/action-items.js';
+import { convertZoomSummaryToMeetingNote } from './parsers/summary-converter.js';
 import { generateMarkdown } from './generators/markdown.js';
 import { createDatePath, writeFile, fileExists } from './utils/filesystem.js';
 import { createFilename } from './utils/sanitize.js';
@@ -130,58 +131,72 @@ async function processRecording(
   zoomClient: ZoomApiClient,
   config: ReturnType<typeof loadConfig>
 ): Promise<ProcessedRecording | null> {
-  // Find transcript file
-  const transcriptFile = recording.recording_files.find(
-    (file) => file.file_type === 'TRANSCRIPT' && file.status === 'completed'
-  );
+  let meetingNote: MeetingNote;
 
-  if (!transcriptFile) {
-    logger.warning('No completed transcript file found');
-    return null;
+  // Try to fetch AI-generated summary first
+  logger.info('Checking for AI-generated meeting summary...');
+  const aiSummary = await zoomClient.getMeetingSummary(recording.uuid);
+
+  if (aiSummary) {
+    logger.info('✅ AI summary found! Using Zoom AI Companion summary');
+    meetingNote = convertZoomSummaryToMeetingNote(aiSummary);
+  } else {
+    // Fallback to transcript parsing
+    logger.info('No AI summary available, falling back to transcript parsing');
+
+    // Find transcript file
+    const transcriptFile = recording.recording_files.find(
+      (file) => file.file_type === 'TRANSCRIPT' && file.status === 'completed'
+    );
+
+    if (!transcriptFile) {
+      logger.warning('No completed transcript file found');
+      return null;
+    }
+
+    logger.info('Downloading transcript', {
+      fileType: transcriptFile.file_extension,
+      size: transcriptFile.file_size,
+    });
+
+    // Download transcript
+    const transcriptContent = await zoomClient.downloadFile(transcriptFile.download_url);
+
+    // Parse transcript
+    const parsedTranscript = parseTranscript(transcriptContent, transcriptFile.file_extension);
+
+    logger.info(`Parsed transcript: ${parsedTranscript.segments.length} segments`);
+
+    // Extract action items (if enabled)
+    const actionItems = config.enableActionItemExtraction
+      ? extractActionItems(parsedTranscript)
+      : [];
+
+    // Build meeting note from transcript
+    meetingNote = {
+      metadata: {
+        title: recording.topic,
+        meetingId: recording.id.toString(),
+        uuid: recording.uuid,
+        startTime: recording.start_time,
+        duration: recording.duration,
+        host: recording.host_email,
+        participants: extractParticipants(recording),
+        recordingCount: recording.recording_count,
+        transcriptAvailable: true,
+      },
+      transcript: parsedTranscript,
+      actionItems,
+    };
   }
-
-  logger.info('Downloading transcript', {
-    fileType: transcriptFile.file_extension,
-    size: transcriptFile.file_size,
-  });
-
-  // Download transcript
-  const transcriptContent = await zoomClient.downloadFile(transcriptFile.download_url);
-
-  // Parse transcript
-  const parsedTranscript = parseTranscript(transcriptContent, transcriptFile.file_extension);
-
-  logger.info(`Parsed transcript: ${parsedTranscript.segments.length} segments`);
-
-  // Extract action items (if enabled)
-  const actionItems = config.enableActionItemExtraction
-    ? extractActionItems(parsedTranscript)
-    : [];
-
-  // Build meeting note
-  const meetingNote: MeetingNote = {
-    metadata: {
-      title: recording.topic,
-      meetingId: recording.id.toString(),
-      uuid: recording.uuid,
-      startTime: recording.start_time,
-      duration: recording.duration,
-      host: recording.host_email,
-      participants: extractParticipants(recording),
-      recordingCount: recording.recording_count,
-      transcriptAvailable: true,
-    },
-    transcript: parsedTranscript,
-    actionItems,
-  };
 
   // Generate Markdown
   const markdown = generateMarkdown(meetingNote);
 
   // Determine file path
-  const startDate = new Date(recording.start_time);
+  const startDate = new Date(meetingNote.metadata.startTime);
   const datePath = createDatePath(startDate, config.outputDir);
-  const filename = createFilename(recording.topic, recording.uuid);
+  const filename = createFilename(meetingNote.metadata.title, meetingNote.metadata.uuid);
   const filePath = path.join(datePath, filename);
 
   // Check if file already exists
@@ -197,8 +212,8 @@ async function processRecording(
 
   // Return processed recording info
   return {
-    uuid: recording.uuid,
-    meetingId: recording.id.toString(),
+    uuid: meetingNote.metadata.uuid,
+    meetingId: meetingNote.metadata.meetingId,
     processedAt: new Date().toISOString(),
     filePath,
     hash: createContentHash(markdown),

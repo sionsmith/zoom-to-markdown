@@ -5,7 +5,7 @@
 import axios, { AxiosInstance } from 'axios';
 import { logger } from '../utils/logger.js';
 import { ZoomAuthClient } from './zoom-auth.js';
-import type { ZoomConfig, ZoomRecordingsResponse, ZoomRecording } from '../types/index.js';
+import type { ZoomConfig, ZoomRecordingsResponse, ZoomRecording, ZoomMeetingSummary } from '../types/index.js';
 
 export class ZoomApiClient {
   private authClient: ZoomAuthClient;
@@ -141,6 +141,41 @@ export class ZoomApiClient {
         });
       }
       throw new Error(`Failed to download file: ${url}`);
+    }
+  }
+
+  /**
+   * Get AI-generated meeting summary for a meeting
+   */
+  async getMeetingSummary(meetingUuid: string): Promise<ZoomMeetingSummary | null> {
+    try {
+      // Double encode the UUID as required by Zoom API
+      const encodedUuid = encodeURIComponent(encodeURIComponent(meetingUuid));
+
+      logger.debug(`Fetching meeting summary for: ${meetingUuid}`);
+
+      const response = await this.axiosInstance.get<ZoomMeetingSummary>(
+        `/meetings/${encodedUuid}/meeting_summary`
+      );
+
+      logger.info(`Successfully fetched meeting summary for: ${meetingUuid}`);
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 404 || error.response?.data?.code === 3001) {
+          // 3001 = No summary available for this meeting
+          logger.debug(`No meeting summary available for: ${meetingUuid}`);
+          return null;
+        }
+
+        logger.error('Failed to fetch meeting summary', {
+          uuid: meetingUuid,
+          status: error.response?.status,
+          code: error.response?.data?.code,
+          message: error.response?.data?.message,
+        });
+      }
+      return null;
     }
   }
 

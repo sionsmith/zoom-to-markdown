@@ -1,271 +1,342 @@
 # Zoom Meeting Notes Archiver
 
-Automated tool to archive Zoom AI Companion meeting summaries as Markdown files in GitHub. Runs on GitHub Actions to fetch all your meetings, sync AI-generated summaries with action items, and commit meeting notes to your repository.
+🤖 **A GitHub Action to automatically archive Zoom AI Companion meeting summaries as Markdown files**
+
+Perfect for teams who want to maintain a searchable archive of their Zoom meetings with AI-generated summaries, action items, and discussion topics - all stored securely in their private GitHub repository.
+
+[![GitHub Release](https://img.shields.io/github/v/release/sionsmith/zoom-meeting-notes)](https://github.com/sionsmith/zoom-meeting-notes/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ## Features
 
-- 🤖 **AI Companion Summaries**: Uses Zoom AI Companion meeting summaries (not just transcripts!)
-- 🔄 **Automated Polling**: GitHub Actions runs every 15 minutes to fetch new meetings
-- 📝 **Markdown Generation**: Converts AI summaries to beautifully formatted Markdown
-- ✅ **Action Item Extraction**: Automatically extracts next steps from AI summaries
-- 📁 **Date-Based Organization**: Files organized in `YYYY/MM/DD/` folder structure
-- 🔒 **Secure**: Uses OAuth 2.0 Server-to-Server authentication
-- 🚀 **Idempotent**: Safe to re-run, prevents duplicates
-- 📊 **State Management**: Tracks processed meetings to avoid re-processing
-- 📅 **Historical Sync**: Fetches all meetings from the last 5 months (Zoom API limitation)
+- 🤖 **AI Companion Summaries**: Leverages Zoom AI Companion for high-quality meeting summaries
+- ✅ **Smart Action Items**: Automatically extracts next steps and assigns ownership
+- 📝 **Beautiful Markdown**: Clean, searchable markdown files with proper formatting
+- 📁 **Organized Structure**: Date-based folders (`YYYY/MM/DD/filename.md`)
+- 🔄 **Automated Sync**: Runs on schedule (default: hourly, Mon-Fri)
+- 🔒 **Secure**: All data stays in your private repository
+- 🚀 **Zero Maintenance**: Set it and forget it
+- 📊 **State Management**: Only processes new meetings, prevents duplicates
+- 📅 **Historical Sync**: Fetches meetings from the last 5 months on first run
 
-## Output Example
+## Quick Start
 
-Meeting notes are saved as:
-```
-meeting-notes/
-  2025/
-    11/
-      13/
-        q4-planning-team-abc123def456.md
-```
-
-Each Markdown file includes:
-- YAML frontmatter with metadata
-- Participant list
-- Automatically extracted action items
-- Full timestamped transcript
-
-See [example output](docs/Meeting%20Summary%20Archiver%20prd.md#output-example) for more details.
-
-## Prerequisites
-
-- **Zoom Account** with Cloud Recording enabled
-- **GitHub Repository** to store meeting notes
-- **Node.js 20+** for local development (optional)
-
-## Setup Instructions
-
-### 1. Create Zoom Server-to-Server OAuth App
+### 1. Create a Zoom Server-to-Server OAuth App
 
 1. Go to [Zoom App Marketplace](https://marketplace.zoom.us/develop/create)
 2. Click **Create** → **Server-to-Server OAuth**
 3. Fill in app details:
-   - **App Name**: Zoom Meeting Notes Archiver
-   - **Description**: Automated meeting notes archiver
-   - **Company Name**: Your name/company
-4. Copy credentials:
+   - **App Name**: `Meeting Notes Archiver`
+   - **Description**: `Automated meeting notes sync`
+   - **Company Name**: Your organization name
+4. Copy these credentials (you'll need them later):
    - `Account ID`
    - `Client ID`
    - `Client Secret`
-5. Add scopes:
-   - `recording:read:admin` (or `recording:read:meeting` for user-level)
-   - `user:read:admin` (optional, for user info)
-6. **Activate** the app
+5. **Add required scopes**:
+   - `meeting_summary:read:admin` - Read AI Companion summaries
+   - `report:read:meeting:admin` - List past meetings
+6. Click **Activate** the app
 
-### 2. Enable Zoom Cloud Recording & Transcription
+### 2. Create a Private GitHub Repository
 
-1. Go to [Zoom Settings](https://zoom.us/profile/setting)
-2. Navigate to **Recording** tab
-3. Enable:
-   - ✅ **Cloud Recording**
-   - ✅ **Audio Transcript** (under Advanced cloud recording settings)
-4. Save changes
+```bash
+# Create a new private repository for your meeting notes
+gh repo create my-meeting-notes --private --clone
+cd my-meeting-notes
 
-### 3. Configure GitHub Repository
+# Initialize with a README
+echo "# Meeting Notes" > README.md
+git add README.md
+git commit -m "Initial commit"
+git push -u origin main
+```
 
-1. **Fork or clone** this repository
+### 3. Add GitHub Secrets
 
-2. **Add GitHub Secrets**:
-   - Go to repository **Settings** → **Secrets and variables** → **Actions**
-   - Add the following secrets:
-     - `ZOOM_ACCOUNT_ID`: Your Zoom Account ID
-     - `ZOOM_CLIENT_ID`: Your Zoom Client ID
-     - `ZOOM_CLIENT_SECRET`: Your Zoom Client Secret
-     - `ZOOM_USER_ID` (optional): Specific user ID or "me" (default)
+Go to your private repo's **Settings** → **Secrets and variables** → **Actions**, and add:
 
-3. **Enable GitHub Actions**:
-   - Go to **Actions** tab
-   - Enable workflows if prompted
+| Secret Name | Value | Description |
+|-------------|-------|-------------|
+| `ZOOM_ACCOUNT_ID` | `xxxxx` | From Zoom OAuth app |
+| `ZOOM_CLIENT_ID` | `xxxxx` | From Zoom OAuth app |
+| `ZOOM_CLIENT_SECRET` | `xxxxx` | From Zoom OAuth app |
+| `ZOOM_USER_ID` | `your.email@company.com` | Your Zoom email address |
 
-4. **Set repository permissions**:
-   - Go to **Settings** → **Actions** → **General**
-   - Under **Workflow permissions**, select:
-     - ✅ **Read and write permissions**
+### 4. Create Workflow File
 
-### 4. Run the Workflow
+Create `.github/workflows/sync-zoom.yml` in your private repo:
 
-The workflow runs automatically every 15 minutes. To trigger manually:
+```yaml
+name: Sync Zoom Meeting Notes
 
-1. Go to **Actions** tab
-2. Select **Sync Zoom Recordings** workflow
-3. Click **Run workflow**
+on:
+  # Run every hour during work hours (9 AM - 5 PM UTC), Monday-Friday
+  schedule:
+    - cron: '0 9-17 * * 1-5'
+
+  # Allow manual trigger
+  workflow_dispatch:
+
+concurrency:
+  group: zoom-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Sync Zoom meeting notes
+        uses: sionsmith/zoom-meeting-notes@v1
+        with:
+          zoom-account-id: ${{ secrets.ZOOM_ACCOUNT_ID }}
+          zoom-client-id: ${{ secrets.ZOOM_CLIENT_ID }}
+          zoom-client-secret: ${{ secrets.ZOOM_CLIENT_SECRET }}
+          zoom-user-id: ${{ secrets.ZOOM_USER_ID }}
+          output-dir: 'meeting-notes'
+          enable-action-items: 'true'
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit and push meeting notes
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            NEW_FILES=$(git status --porcelain | grep "^??" | grep "\.md$" | wc -l | tr -d ' ')
+            git add .
+            git commit -m "chore: sync meeting notes - $(date -u +'%Y-%m-%d %H:%M UTC')
+
+            📝 Added ${NEW_FILES} new meeting summaries
+            🤖 Automated by Zoom Meeting Notes Archiver"
+            git push
+            echo "✅ Pushed ${NEW_FILES} new meeting notes"
+          else
+            echo "ℹ️ No new meeting notes to commit"
+          fi
+```
+
+### 5. Enable Workflow Permissions
+
+In your private repo:
+1. Go to **Settings** → **Actions** → **General**
+2. Under **Workflow permissions**, select:
+   - ✅ **Read and write permissions**
+3. Click **Save**
+
+### 6. Run the Workflow
+
+**First run (manual):**
+1. Go to **Actions** tab in your private repo
+2. Select **Sync Zoom Meeting Notes** workflow
+3. Click **Run workflow** → **Run workflow**
+
+The action will sync all meetings from the last 5 months!
+
+**Automatic runs:**
+- The workflow will run every hour (9 AM - 5 PM UTC) on weekdays by default
+- Customize the schedule in your workflow file (see examples below)
+
+## Output Example
+
+Meeting notes are saved with this structure:
+
+```
+my-meeting-notes/
+├── meeting-notes/
+│   ├── 2025/
+│   │   ├── 11/
+│   │   │   ├── 14/
+│   │   │   │   ├── q4-planning-abc123.md
+│   │   │   │   └── customer-demo-def456.md
+│   │   │   └── 15/
+│   │   │       └── team-standup-ghi789.md
+```
+
+Each file contains:
+
+```markdown
+---
+title: Q4 Planning Meeting
+meeting_id: '12345678'
+uuid: abc123def456
+start_time: '2025-11-14T15:00:00Z'
+duration: 3600
+host: john@company.com
+participants:
+  - john@company.com
+  - jane@company.com
+---
+# Q4 Planning Meeting
+
+**Date:** November 14, 2025
+**Time:** 3:00 PM UTC
+**Duration:** 1 hour
+**Host:** john@company.com
+
+## Participants
+- john@company.com (Host)
+- jane@company.com
+
+## Action Items
+> ⚠️ Note: Action items are automatically extracted from Zoom AI Companion
+
+- [ ] John to finalize Q4 budget by Nov 20
+- [ ] Jane to schedule client kickoff meetings
+- [ ] Team to review product roadmap before next meeting
+
+## Full Transcript
+
+**[00:00:00] Budget Discussion:**
+The team reviewed the Q4 budget allocation...
+
+**[00:15:00] Client Projects:**
+Discussion of upcoming client engagements...
+```
+
+## Configuration Options
+
+### Action Inputs
+
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `zoom-account-id` | ✅ Yes | - | Zoom Account ID |
+| `zoom-client-id` | ✅ Yes | - | Zoom Client ID |
+| `zoom-client-secret` | ✅ Yes | - | Zoom Client Secret |
+| `zoom-user-id` | ✅ Yes | - | Zoom User ID (email) |
+| `output-dir` | No | `meeting-notes` | Output directory |
+| `enable-action-items` | No | `true` | Extract action items |
+
+### Schedule Customization
+
+Customize when the action runs by editing the `schedule` section:
+
+```yaml
+# Every hour, 24/7
+schedule:
+  - cron: '0 * * * *'
+
+# Every 2 hours, Monday-Friday
+schedule:
+  - cron: '0 */2 * * 1-5'
+
+# Every 30 minutes during work hours (9 AM - 5 PM UTC)
+schedule:
+  - cron: '*/30 9-17 * * 1-5'
+
+# Once per day at 9 AM UTC
+schedule:
+  - cron: '0 9 * * *'
+
+# Multiple times per day (9 AM, 1 PM, 5 PM UTC)
+schedule:
+  - cron: '0 9 * * 1-5'
+  - cron: '0 13 * * 1-5'
+  - cron: '0 17 * * 1-5'
+```
+
+Use [crontab.guru](https://crontab.guru/) to build custom schedules.
+
+## Requirements
+
+- ✅ Zoom account with **AI Companion** enabled
+- ✅ Zoom **Server-to-Server OAuth** app with required scopes
+- ✅ GitHub repository (private recommended)
+- ✅ GitHub Actions enabled
+
+## Troubleshooting
+
+### No meetings are synced
+
+**Check:**
+1. Zoom OAuth app has required scopes: `meeting_summary:read:admin` and `report:read:meeting:admin`
+2. Zoom AI Companion is enabled for your account
+3. Meetings were held in the last 5 months (Zoom API limitation)
+4. Meetings have AI summaries generated (check in Zoom web portal)
+
+### GitHub Actions failing
+
+**Check:**
+1. All 4 GitHub secrets are set correctly
+2. Workflow permissions are set to "Read and write permissions"
+3. Review workflow logs in GitHub Actions tab
+
+### Wrong timezone
+
+The cron schedule uses UTC. To convert to your timezone:
+- **EST/EDT**: Subtract 5 hours from UTC (9 AM UTC = 4 AM EST)
+- **PST/PDT**: Subtract 8 hours from UTC (9 AM UTC = 1 AM PST)
+- **CET/CEST**: Add 1 hour to UTC (9 AM UTC = 10 AM CET)
 
 ## Local Development
 
-### Installation
+Want to test locally before setting up GitHub Actions?
 
 ```bash
-# Clone repository
-git clone https://github.com/yourusername/zoom-meeting-notes.git
+# Clone this repo
+git clone https://github.com/sionsmith/zoom-meeting-notes.git
 cd zoom-meeting-notes
 
 # Install dependencies
 npm install
 
-# Copy environment template
+# Create .env file (copy from .env.example)
 cp .env.example .env
 
 # Edit .env with your Zoom credentials
 nano .env
-```
 
-### Build & Run
-
-```bash
-# Build TypeScript
+# Build and run
 npm run build
-
-# Run sync
 npm start
-
-# Or run in development mode (with auto-reload)
-npm run dev
 ```
 
-### Testing
+## Security & Privacy
 
-```bash
-# Run tests
-npm test
+- ✅ All meeting data stays in YOUR private GitHub repository
+- ✅ No data is sent to third parties
+- ✅ Secrets are stored securely in GitHub Secrets
+- ✅ Open source code - audit it yourself!
+- ✅ Uses OAuth 2.0 for Zoom authentication (no password storage)
 
-# Lint code
-npm run lint
+## Limitations
 
-# Format code
-npm run format
-```
-
-## Configuration
-
-All configuration is done via environment variables:
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `ZOOM_ACCOUNT_ID` | Yes | - | Zoom Account ID from OAuth app |
-| `ZOOM_CLIENT_ID` | Yes | - | Zoom Client ID from OAuth app |
-| `ZOOM_CLIENT_SECRET` | Yes | - | Zoom Client Secret from OAuth app |
-| `ZOOM_USER_ID` | No | `me` | User ID to fetch recordings from |
-| `OUTPUT_DIR` | No | `meeting-notes` | Directory for output files |
-| `ENABLE_ACTION_ITEMS` | No | `true` | Enable action item extraction |
-| `MAX_RECORDINGS_PER_RUN` | No | `100` | Max recordings to process per run |
-
-## Project Structure
-
-```
-zoom-meeting-notes/
-├── src/
-│   ├── services/
-│   │   ├── zoom-auth.ts       # OAuth authentication
-│   │   ├── zoom-api.ts        # Zoom API client
-│   │   └── state-manager.ts   # State persistence
-│   ├── parsers/
-│   │   ├── transcript-parser.ts  # VTT/SRT parser
-│   │   └── action-items.ts       # Action item extractor
-│   ├── generators/
-│   │   └── markdown.ts        # Markdown generator
-│   ├── utils/
-│   │   ├── config.ts          # Configuration loader
-│   │   ├── logger.ts          # Structured logging
-│   │   ├── filesystem.ts      # File operations
-│   │   └── sanitize.ts        # String sanitization
-│   ├── types/
-│   │   └── index.ts           # TypeScript types
-│   └── index.ts               # Main orchestrator
-├── .github/
-│   └── workflows/
-│       └── sync-zoom-recordings.yml  # GitHub Action
-├── docs/
-│   └── Meeting Summary Archiver prd.md
-├── package.json
-├── tsconfig.json
-└── README.md
-```
-
-## How It Works
-
-1. **GitHub Actions** triggers every 15 minutes
-2. **Zoom API** is polled for new recordings with transcripts
-3. **State file** (`.state.json`) tracks which recordings were already processed
-4. For each new recording:
-   - Download VTT/SRT transcript
-   - Parse transcript into segments
-   - Extract action items using pattern matching
-   - Generate Markdown with YAML frontmatter
-   - Save to date-based folder structure
-5. **Git commit** all new files
-6. **Push** to repository
-
-## Troubleshooting
-
-### No recordings are being fetched
-
-- Verify Zoom credentials in GitHub Secrets
-- Check that Cloud Recording is enabled in Zoom settings
-- Ensure transcription is enabled
-- Check GitHub Actions logs for errors
-
-### Action items not being extracted
-
-- Action item extraction uses keyword patterns
-- Accuracy improves when speakers explicitly mention "action item", "TODO", etc.
-- Consider enabling LLM processing for better accuracy (see PRD)
-
-### Workflow fails with authentication error
-
-- Verify OAuth app is **activated** in Zoom Marketplace
-- Check that all required scopes are added
-- Regenerate client secret if needed
-
-### Duplicate files being created
-
-- The tool uses meeting UUID for uniqueness
-- Check `.state.json` file is being persisted
-- Ensure workflow has write permissions
-
-## Known Limitations
-
-- ⚠️ **AI Companion summaries are NOT available via API** (as of Jan 2025)
-  - This is a known limitation - feature requested on Zoom forums
-  - The tool uses transcript parsing as an alternative
-- ⚠️ Recordings must have **auto-transcription enabled**
-- ⚠️ Transcript files expire based on Zoom retention settings
-- ⚠️ Participant list may be incomplete (API limitation)
-
-## Roadmap
-
-- [ ] LLM-based action item extraction (Claude/GPT integration)
-- [ ] Smart summary generation (since Zoom AI Companion API not available)
-- [ ] Email notifications for new meeting notes
-- [ ] Search interface for historical meetings
-- [ ] Support for on-premise Zoom installations
-- [ ] Integration with project management tools (Jira, Linear, etc.)
+- 📅 Zoom Reports API only allows fetching meetings from the last **6 months**
+- 🤖 Only meetings with **Zoom AI Companion summaries** are processed
+- 📝 AI summaries depend on Zoom's AI Companion being enabled for your account
 
 ## Contributing
 
 Contributions welcome! Please:
-
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+4. Submit a pull request
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file
+MIT License - see [LICENSE](LICENSE) file for details
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/zoom-meeting-notes/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/zoom-meeting-notes/discussions)
-- **Zoom API Docs**: [developers.zoom.us](https://developers.zoom.us/docs/api/)
+- 📖 [Documentation](https://github.com/sionsmith/zoom-meeting-notes/wiki)
+- 🐛 [Report Issues](https://github.com/sionsmith/zoom-meeting-notes/issues)
+- 💬 [Discussions](https://github.com/sionsmith/zoom-meeting-notes/discussions)
 
----
+## Credits
 
-**Made with ❤️ for better meeting documentation**
+Built with ❤️ by [Sion Smith](https://github.com/sionsmith)
+
+Powered by:
+- [Zoom API](https://developers.zoom.us/)
+- [GitHub Actions](https://github.com/features/actions)
+- [TypeScript](https://www.typescriptlang.org/)

@@ -1,0 +1,96 @@
+name: 'Zoom Meeting Notes Archiver'
+description: 'Automatically archive Zoom AI Companion meeting summaries as Markdown files'
+author: 'Sion Smith'
+
+branding:
+  icon: 'file-text'
+  color: 'blue'
+
+inputs:
+  zoom-account-id:
+    description: 'Zoom Account ID (from Server-to-Server OAuth app)'
+    required: true
+  zoom-client-id:
+    description: 'Zoom Client ID (from Server-to-Server OAuth app)'
+    required: true
+  zoom-client-secret:
+    description: 'Zoom Client Secret (from Server-to-Server OAuth app)'
+    required: true
+  zoom-user-id:
+    description: 'Zoom User ID (email address or user ID)'
+    required: true
+  output-dir:
+    description: 'Output directory for meeting notes (relative to repo root)'
+    required: false
+    default: 'meeting-notes'
+  enable-action-items:
+    description: 'Enable automatic action item extraction from summaries'
+    required: false
+    default: 'true'
+
+outputs:
+  meetings-processed:
+    description: 'Number of meetings successfully processed'
+    value: ${{ steps.sync.outputs.meetings_processed }}
+  files-created:
+    description: 'Number of markdown files created'
+    value: ${{ steps.sync.outputs.files_created }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        cd ${{ github.action_path }}
+        npm ci --production
+
+    - name: Build TypeScript
+      shell: bash
+      run: |
+        cd ${{ github.action_path }}
+        npm run build
+
+    - name: Download previous state
+      uses: actions/download-artifact@v4
+      continue-on-error: true
+      with:
+        name: zoom-sync-state
+        path: ${{ github.workspace }}
+
+    - name: Sync Zoom meetings
+      id: sync
+      shell: bash
+      env:
+        ZOOM_ACCOUNT_ID: ${{ inputs.zoom-account-id }}
+        ZOOM_CLIENT_ID: ${{ inputs.zoom-client-id }}
+        ZOOM_CLIENT_SECRET: ${{ inputs.zoom-client-secret }}
+        ZOOM_USER_ID: ${{ inputs.zoom-user-id }}
+        OUTPUT_DIR: ${{ inputs.output-dir }}
+        ENABLE_ACTION_ITEMS: ${{ inputs.enable-action-items }}
+      run: |
+        cd ${{ github.action_path }}
+        node dist/index.js
+
+        # Set outputs
+        if [ -f "${{ github.workspace }}/.state.json" ]; then
+          MEETINGS_PROCESSED=$(cat ${{ github.workspace }}/.state.json | jq '.statistics.totalMeetings // 0')
+          echo "meetings_processed=$MEETINGS_PROCESSED" >> $GITHUB_OUTPUT
+        fi
+
+        FILES_CREATED=$(find ${{ github.workspace }}/${{ inputs.output-dir }} -name "*.md" -type f 2>/dev/null | wc -l | tr -d ' ')
+        echo "files_created=$FILES_CREATED" >> $GITHUB_OUTPUT
+
+    - name: Upload state for next run
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: zoom-sync-state
+        path: ${{ github.workspace }}/.state.json
+        retention-days: 90
+        if-no-files-found: ignore

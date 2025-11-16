@@ -1,0 +1,94 @@
+# Example workflow for syncing Zoom meeting notes to your private repository
+# Copy this file to your private repo at: .github/workflows/sync-zoom.yml
+
+name: Sync Zoom Meeting Notes
+
+on:
+  # Run every hour, Monday-Friday (9 AM - 5 PM UTC)
+  # Customize the schedule to match your timezone and preferences
+  schedule:
+    - cron: '0 9-17 * * 1-5'  # Every hour from 9 AM to 5 PM, Mon-Fri UTC
+
+  # Allow manual trigger
+  workflow_dispatch:
+
+# Prevent concurrent runs
+concurrency:
+  group: zoom-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required to commit meeting notes
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch full history for proper git operations
+
+      - name: Sync Zoom meeting notes
+        uses: sionsmith/zoom-meeting-notes@v1  # Update to latest version
+        with:
+          zoom-account-id: ${{ secrets.ZOOM_ACCOUNT_ID }}
+          zoom-client-id: ${{ secrets.ZOOM_CLIENT_ID }}
+          zoom-client-secret: ${{ secrets.ZOOM_CLIENT_SECRET }}
+          zoom-user-id: ${{ secrets.ZOOM_USER_ID }}
+          output-dir: 'meeting-notes'  # Customize output directory
+          enable-action-items: 'true'  # Set to 'false' to disable action items
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit and push meeting notes
+        run: |
+          # Check if there are any changes
+          if [ -n "$(git status --porcelain)" ]; then
+            # Count new markdown files
+            NEW_FILES=$(git status --porcelain | grep "^??" | grep "\.md$" | wc -l | tr -d ' ')
+
+            # Add all changes
+            git add .
+
+            # Create commit message
+            DATE=$(date -u +"%Y-%m-%d %H:%M UTC")
+            git commit -m "chore: sync meeting notes - ${DATE}
+
+            📝 Added ${NEW_FILES} new meeting summaries
+            🤖 Automated by Zoom Meeting Notes Archiver"
+
+            # Push changes
+            git push
+
+            echo "✅ Pushed ${NEW_FILES} new meeting notes"
+          else
+            echo "ℹ️ No new meeting notes to commit"
+          fi
+
+# ════════════════════════════════════════════════════════════════
+# SCHEDULE CUSTOMIZATION EXAMPLES
+# ════════════════════════════════════════════════════════════════
+#
+# Every hour, 24/7:
+#   - cron: '0 * * * *'
+#
+# Every 2 hours, Monday-Friday:
+#   - cron: '0 */2 * * 1-5'
+#
+# Every 30 minutes during work hours (9 AM - 5 PM UTC), Mon-Fri:
+#   - cron: '*/30 9-17 * * 1-5'
+#
+# Once per day at 9 AM UTC:
+#   - cron: '0 9 * * *'
+#
+# Multiple times per day (9 AM, 1 PM, 5 PM UTC):
+#   schedule:
+#     - cron: '0 9 * * 1-5'
+#     - cron: '0 13 * * 1-5'
+#     - cron: '0 17 * * 1-5'
+#
+# For timezone reference, visit: https://crontab.guru/

@@ -4,8 +4,17 @@
 
 Perfect for teams who want to maintain a searchable archive of their Zoom meetings with AI-generated summaries, action items, and discussion topics - all stored securely in their private GitHub repository.
 
-[![GitHub Release](https://img.shields.io/github/v/release/sionsmith/zoom-meeting-notes)](https://github.com/sionsmith/zoom-meeting-notes/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+<div align="center">
+
+[![GitHub Release](https://img.shields.io/github/v/release/sionsmith/zoom-meeting-notes?label=version)](https://github.com/sionsmith/zoom-meeting-notes/releases)
+[![GitHub Marketplace](https://img.shields.io/badge/Marketplace-Zoom%20Meeting%20Notes-blue?logo=github)](https://github.com/marketplace/actions/zoom-meeting-notes-archiver)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![GitHub Stars](https://img.shields.io/github/stars/sionsmith/zoom-meeting-notes?style=social)](https://github.com/sionsmith/zoom-meeting-notes)
+
+[![CI](https://github.com/sionsmith/zoom-meeting-notes/actions/workflows/ci.yml/badge.svg)](https://github.com/sionsmith/zoom-meeting-notes/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/sionsmith/zoom-meeting-notes/actions/workflows/codeql.yml/badge.svg)](https://github.com/sionsmith/zoom-meeting-notes/actions/workflows/codeql.yml)
+
+</div>
 
 ## Features
 

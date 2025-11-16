@@ -12,7 +12,7 @@ Automated tool to archive Zoom AI Companion meeting summaries as Markdown files 
 - 🔒 **Secure**: Uses OAuth 2.0 Server-to-Server authentication
 - 🚀 **Idempotent**: Safe to re-run, prevents duplicates
 - 📊 **State Management**: Tracks processed meetings to avoid re-processing
-- 📅 **Historical Sync**: Fetches all meetings from beginning of 2025 onwards
+- 📅 **Historical Sync**: Fetches all meetings from the last 5 months (Zoom API limitation)
 
 ## Output Example
 

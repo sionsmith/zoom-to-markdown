@@ -115,7 +115,8 @@ async function main() {
       status: runStatus,
     });
 
-    if (errorCount > 0) {
+    // Only exit with error if there was a complete failure (more errors than successes)
+    if (runStatus === 'failure') {
       process.exit(1);
     }
   } catch (error) {

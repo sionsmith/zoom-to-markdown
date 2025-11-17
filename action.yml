@@ -48,7 +48,7 @@ runs:
       shell: bash
       run: |
         cd ${{ github.action_path }}
-        npm ci --production
+        npm ci
 
     - name: Build TypeScript
       shell: bash

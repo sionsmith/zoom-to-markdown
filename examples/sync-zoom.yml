@@ -7,7 +7,7 @@ on:
   # Run every hour, Monday-Friday (9 AM - 5 PM UTC)
   # Customize the schedule to match your timezone and preferences
   schedule:
-    - cron: '0 9-17 * * 1-5'  # Every hour from 9 AM to 5 PM, Mon-Fri UTC
+    - cron: '0 9,10,11,12,13,14,15,16,17 * * 1-5'  # Hourly 9 AM-5 PM UTC, Mon-Fri
 
   # Allow manual trigger
   workflow_dispatch:
@@ -80,7 +80,7 @@ jobs:
 #   - cron: '0 */2 * * 1-5'
 #
 # Every 30 minutes during work hours (9 AM - 5 PM UTC), Mon-Fri:
-#   - cron: '*/30 9-17 * * 1-5'
+#   - cron: '*/30 9,10,11,12,13,14,15,16,17 * * 1-5'
 #
 # Once per day at 9 AM UTC:
 #   - cron: '0 9 * * *'

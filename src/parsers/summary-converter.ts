@@ -12,24 +12,25 @@ export function convertZoomSummaryToMeetingNote(summary: ZoomMeetingSummary): Me
   logger.debug('Converting Zoom AI summary to MeetingNote format');
 
   // Convert next steps to action items
-  const actionItems: ActionItem[] = summary.next_steps.map((step) => ({
+  const actionItems: ActionItem[] = (summary.next_steps || []).map((step) => ({
     text: step,  // next_steps is an array of strings
     assignee: undefined,  // Zoom doesn't provide assignee info
     confidence: 0.95, // High confidence since it's from Zoom AI
   }));
 
   // Create a pseudo-transcript from summary details
+  const summaryDetails = summary.summary_details || [];
   const transcript: ParsedTranscript = {
-    segments: summary.summary_details.map((detail, index) => ({
+    segments: summaryDetails.map((detail, index) => ({
       speaker: detail.label || 'Summary',  // Use label as speaker
       timestamp: formatTimestamp(index),
       text: detail.summary,  // Use summary field
     })),
-    rawText: summary.summary_details.map((d) => d.summary).join('\n\n'),
+    rawText: summaryDetails.map((d) => d.summary).join('\n\n'),
   };
 
   // Extract key points from summary details (all labels)
-  const keyPoints = summary.summary_details.map((d) => d.label);
+  const keyPoints = summaryDetails.map((d) => d.label);
 
   return {
     metadata: {

@@ -63,11 +63,11 @@ export interface ZoomMeetingSummary {
   summary_last_modified_time: string;
   summary_title: string;
   summary_overview: string;
-  summary_details: Array<{
+  summary_details?: Array<{
     label: string;      // e.g. "Trigger Types Implementation Discussion"
     summary: string;    // The detailed summary text for this section
   }>;
-  next_steps: string[]; // Array of action item strings
+  next_steps?: string[]; // Array of action item strings
   summary_content: string;  // Full markdown-formatted summary
   summary_doc_url: string;  // URL to view summary in Zoom
 }

@@ -1,6 +1,6 @@
 {
   "name": "zoom-meeting-notes",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Automated tool to archive Zoom meeting recordings and transcripts as Markdown files in GitHub",
   "main": "dist/index.js",
   "type": "module",

@@ -35,7 +35,8 @@ async function main() {
 
     // Initialize services
     const zoomClient = new ZoomApiClient(config.zoom);
-    const stateManager = new StateManager();
+    const stateFilePath = path.join(config.workspaceDir, '.state.json');
+    const stateManager = new StateManager(stateFilePath);
 
     // Load state
     await stateManager.load();
@@ -150,9 +151,10 @@ async function processMeeting(
   // Generate Markdown
   const markdown = generateMarkdown(meetingNote);
 
-  // Determine file path
+  // Determine file path (relative to workspace)
   const startDate = new Date(meetingNote.metadata.startTime);
-  const datePath = createDatePath(startDate, config.outputDir);
+  const outputDir = path.join(config.workspaceDir, config.outputDir);
+  const datePath = createDatePath(startDate, outputDir);
   const filename = createFilename(meetingNote.metadata.title, meetingNote.metadata.uuid);
   const filePath = path.join(datePath, filename);
 

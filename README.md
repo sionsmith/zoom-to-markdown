@@ -122,7 +122,7 @@ jobs:
         run: |
           if [ -n "$(git status --porcelain)" ]; then
             NEW_FILES=$(git status --porcelain | grep "^??" | grep "\.md$" | wc -l | tr -d ' ')
-            git add .
+            git add meeting-notes/ .state.json
             git commit -m "chore: sync meeting notes - $(date -u +'%Y-%m-%d %H:%M UTC')
 
             📝 Added ${NEW_FILES} new meeting summaries

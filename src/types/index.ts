@@ -155,6 +155,7 @@ export interface State {
 
 export interface Config {
   zoom: ZoomConfig;
+  workspaceDir: string;
   outputDir: string;
   pollIntervalMinutes?: number;
   enableActionItemExtraction?: boolean;

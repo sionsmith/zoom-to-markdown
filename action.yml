@@ -56,13 +56,6 @@ runs:
         cd ${{ github.action_path }}
         npm run build
 
-    - name: Download previous state
-      uses: actions/download-artifact@v4
-      continue-on-error: true
-      with:
-        name: zoom-sync-state
-        path: ${{ github.workspace }}
-
     - name: Sync Zoom meetings
       id: sync
       shell: bash
@@ -73,6 +66,7 @@ runs:
         ZOOM_USER_ID: ${{ inputs.zoom-user-id }}
         OUTPUT_DIR: ${{ inputs.output-dir }}
         ENABLE_ACTION_ITEMS: ${{ inputs.enable-action-items }}
+        WORKSPACE_DIR: ${{ github.workspace }}
       run: |
         cd ${{ github.action_path }}
         node dist/index.js
@@ -85,12 +79,3 @@ runs:
 
         FILES_CREATED=$(find ${{ github.workspace }}/${{ inputs.output-dir }} -name "*.md" -type f 2>/dev/null | wc -l | tr -d ' ')
         echo "files_created=$FILES_CREATED" >> $GITHUB_OUTPUT
-
-    - name: Upload state for next run
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: zoom-sync-state
-        path: ${{ github.workspace }}/.state.json
-        retention-days: 90
-        if-no-files-found: ignore

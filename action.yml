@@ -1,5 +1,5 @@
-name: 'Zoom Meeting Notes Archiver'
-description: 'Automatically sync Zoom AI Companion meeting summaries as searchable Markdown files with action items. Perfect for team knowledge management and meeting archival.'
+name: 'Zoom to Markdown'
+description: 'Automatically archive Zoom AI Companion meeting summaries as Markdown files. Perfect for integrating meeting notes with Claude Desktop and AI-powered workflows.'
 author: 'Sion Smith'
 
 branding:

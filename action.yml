@@ -1,5 +1,5 @@
 name: 'Zoom to Markdown'
-description: 'Automatically archive Zoom AI Companion meeting summaries as Markdown files. Perfect for integrating meeting notes with Claude Desktop and AI-powered workflows.'
+description: 'Archive Zoom AI Companion meeting summaries as Markdown files for Claude Desktop.'
 author: 'Sion Smith'
 
 branding:
